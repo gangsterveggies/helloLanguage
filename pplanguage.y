@@ -19,6 +19,7 @@ import Data.Char
       print           { TokenPrint }
       read            { TokenRead }
       int             { TokenInt $$ }
+      string          { TokenString $$ }
       bool            { TokenBool $$ }
       var             { TokenVar $$ }
       '='             { TokenAt }
@@ -44,7 +45,8 @@ import Data.Char
 Cmd   : if Exp then '\n' Cmd else '\n' Cmd end { IfThenElse $2 $5 $8 }
       | while Exp '\n' Cmd end                 { While $2 $4 }
       | var '=' Exp                            { Attr $1 $3 }
-      | print Exp                              { Print $2 }
+      | print Exp                              { PrintInt $2 }
+      | print string                           { PrintString $2 }
       | read var                               { Read $2 }
       | Cmd '\n' Cmd                           { Seq $1 $3 }
       | Cmd '\n'                               { $1 }
@@ -86,7 +88,8 @@ data State = Info [(String, Value)] [String] [String] deriving (Show)
 data Command = IfThenElse Expr Command Command
              | While Expr Command 
              | Attr String Expr
-             | Print Expr
+             | PrintInt Expr
+             | PrintString String
              | Read String
              | Seq Command Command deriving Show
 
@@ -94,6 +97,7 @@ data Token
       = TokenInt Int
       | TokenBool Bool
       | TokenVar String
+      | TokenString String
       | TokenWhile
       | TokenIf
       | TokenThen
@@ -130,6 +134,7 @@ lexer ('>':cs) = TokenGreater : lexer cs
 lexer ('/':cs) = TokenDiv : lexer cs
 lexer ('(':cs) = TokenOB : lexer cs
 lexer (')':cs) = TokenCB : lexer cs
+lexer ('"':cs) = lexString cs
 lexer ('~':cs) = lexComment cs
 
 lexNum cs = TokenInt (read num) : lexer rest
@@ -137,6 +142,9 @@ lexNum cs = TokenInt (read num) : lexer rest
 
 lexComment cs = lexer rest
       where (num, rest) = break ('\n'==) cs
+
+lexString cs = TokenString st : (lexer $ tail rest)
+      where (st, rest) = break ('"'==) cs
 
 lexVar cs =
    case span isAlphaNum cs of
@@ -194,7 +202,8 @@ interp (Info tbl inp out) (While exp cmd)
        | otherwise = (Info tbl inp out)
 interp (Info tbl inp out) (Attr str exp) = (Info (apply tbl str (eval tbl exp)) inp out)
 interp st (Seq c1 c2) = interp (interp st c1) c2
-interp (Info tbl inp out) (Print exp) = (Info tbl inp (out ++ [getVal (eval tbl exp)]))
+interp (Info tbl inp out) (PrintInt exp) = (Info tbl inp (out ++ [getVal (eval tbl exp)]))
+interp (Info tbl inp out) (PrintString s) = (Info tbl inp (out ++ [s]))
 interp (Info tbl (arg:inp) out) (Read str) = (Info (apply tbl str (TypeInt ((read arg)::Int))) inp out)
 
 getOutput :: State -> [String]
@@ -208,6 +217,6 @@ parse fs = concat `fmap` mapM readFile fs
 
 main = do
   code <- getArgs >>= parse
---  putStrLn $ show (interp ((Info [] [] [])) (go(lexer(code))))
+--  putStrLn $ show (go(lexer(code)))
   interact $ unlines . execute (go (lexer code)) . lines
 }

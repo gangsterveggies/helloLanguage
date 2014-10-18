@@ -1,6 +1,7 @@
 ~ Fibonacci Example
 ~ Reads a number 'n' and prints the 'n'th Fibonacci number
 
+print "Input a number"
 read n
 a1 = 1
 a2 = 0
